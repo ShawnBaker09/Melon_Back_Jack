@@ -9,6 +9,42 @@ const BANNED_WORDS = ['admin','moderator','banned','melon','nigger'];
 let ws = null;
 let useServer = false;
 
+// Supabase integration flag
+let useSupabase = false;
+
+async function createRoomSupabase(displayName){
+  const roomId = makeRoomId();
+  try{
+    await window.supabase.from('rooms').insert({ id: roomId, host: displayName });
+    await window.supabase.from('players').insert({ room_id: roomId, name: displayName });
+    return roomId;
+  }catch(e){ console.error('supabase createRoom failed', e); throw e }
+}
+
+async function joinRoomSupabase(roomId, displayName){
+  const { data } = await window.supabase.from('rooms').select('*').eq('id', roomId).maybeSingle();
+  if(!data){ alert('Room not found'); return false }
+  await window.supabase.from('players').insert({ room_id: roomId, name: displayName });
+  return true;
+}
+
+async function fetchPlayers(roomId){
+  const { data } = await window.supabase.from('players').select('id,name').eq('room_id', roomId);
+  const { data: room } = await window.supabase.from('rooms').select('host').eq('id', roomId).maybeSingle();
+  const hostName = room ? room.host : null;
+  if(!data) return [];
+  return data.map(p=>({id: String(p.id), name: p.name, isHost: (p.name === hostName), votes: new Set()}));
+}
+
+function subscribeLobbySupabase(roomId){
+  const channel = window.supabase.channel('lobby-' + roomId);
+  channel.on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter: `room_id=eq.${roomId}` }, async () => {
+    state.members = await fetchPlayers(roomId);
+    renderMembers();
+  });
+  channel.subscribe();
+}
+
 function getInitialWS(){
   const params = new URLSearchParams(window.location.search);
   if(params.get('ws')) return params.get('ws');
@@ -259,9 +295,17 @@ document.addEventListener('DOMContentLoaded', ()=>{
     if(params.get('ws')){ wsInput.value = params.get('ws'); window.MBJ_WS = params.get('ws'); }
     // if saved server in localStorage, populate
     const saved = localStorage.getItem('mbj:ws'); if(saved && !wsInput.value){ wsInput.value = saved; window.MBJ_WS = saved }
-    // connection attempt
+    // connection attempt and supabase check
+    if(window.supabase){ useSupabase = true; }
     connectWS();
-    if(room){ showRoom(room.toUpperCase()) }
+    if(useSupabase){
+      // if room param present and using supabase, join via supabase
+      if(room){
+        joinRoomSupabase(room.toUpperCase(), state.me.name).then(ok=>{ if(ok){ state.room = room.toUpperCase(); subscribeLobbySupabase(state.room); fetchPlayers(state.room).then(players=>{ state.members = players; renderMembers(); }); } });
+      }
+    }else{
+      if(room){ showRoom(room.toUpperCase()) }
+    }
   });
 
   // allow setting server URL in the page (so GitHub Pages users can paste a wss:// URL)
@@ -272,15 +316,23 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   createBtn.addEventListener('click', ()=>{
     if(!state.me){ alert('Choose a name first.'); return }
-    const id = makeRoomId();
-    showRoom(id);
+    if(useSupabase){
+      createRoomSupabase(state.me.name).then(id=>{ state.room = id; subscribeLobbySupabase(id); fetchPlayers(id).then(players=>{ state.members = players; renderMembers(); }); const link = window.location.origin + window.location.pathname + '?room=' + encodeURIComponent(id); navigator.clipboard.writeText(link); alert('Room created: ' + id); });
+    }else{
+      const id = makeRoomId();
+      showRoom(id);
+    }
   });
 
   joinBtn.addEventListener('click', ()=>{
     if(!state.me){ alert('Choose a name first.'); return }
     const v = input.value && input.value.trim();
     if(!v){alert('Enter a room ID or create one');return}
-    showRoom(v.toUpperCase());
+    if(useSupabase){
+      joinRoomSupabase(v.toUpperCase(), state.me.name).then(ok=>{ if(ok){ state.room = v.toUpperCase(); subscribeLobbySupabase(state.room); fetchPlayers(state.room).then(players=>{ state.members = players; renderMembers(); }); } });
+    }else{
+      showRoom(v.toUpperCase());
+    }
   });
 
   // Auto-show name modal if not chosen

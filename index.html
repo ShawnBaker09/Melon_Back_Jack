@@ -50,6 +50,16 @@
     </main>
   </div>
 
+  <script type="module">
+    // Supabase client (replace with your own keys if different)
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+    window.supabase = createClient(
+      "https://vsuiazngmcqydhnpzatv.supabase.co",
+      "sb_publishable_SiY7fU0jr9oJ1qvUiAinCA_4A38DKHW"
+    );
+  </script>
+
   <script src="script.js"></script>
 </body>
 </html>
