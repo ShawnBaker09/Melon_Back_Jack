@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Melon_Back_Jack</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Watermark comment: Made By bubbabaker2009 -->
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Melon_Back_Jack</h1>
+      <p class="subtitle">Cyber Blackjack — create or join a room to play</p>
+    </header>
+
+    <main>
+      <div class="controls">
+        <input id="room-input" placeholder="Enter room ID to join" />
+        <button id="join-btn">Join Room</button>
+        <button id="create-btn">Create Room</button>
+      </div>
+
+      <div id="room" class="panel hidden">
+        <p id="room-label">Room: <span id="room-id"></span></p>
+        <a id="room-link" href="#">Copy/share this link</a>
+      </div>
+
+      <section id="game" class="panel hidden">
+        <h2>Game area</h2>
+        <p>This is a placeholder for Blackjack UI — add game logic here.</p>
+      </section>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
