@@ -5,8 +5,18 @@
 const BANNED_WORDS = ['admin','moderator','banned','melon','nigger'];
 
 // WebSocket server config (change if you host the server elsewhere)
-const WS_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? 'ws://localhost:3000' : (window.MBJ_WS || 'ws://' + location.host.replace(/:\d+$/, ':3000'));
+// The client will accept a `ws` query param (wss://...) or the `window.MBJ_WS` value.
 let ws = null;
+let useServer = false;
+
+function getInitialWS(){
+  const params = new URLSearchParams(window.location.search);
+  if(params.get('ws')) return params.get('ws');
+  if(window.MBJ_WS) return window.MBJ_WS;
+  // local default for testing (not used on GitHub Pages)
+  if(location.hostname === 'localhost' || location.hostname === '127.0.0.1') return 'ws://localhost:3000';
+  return null;
+}
 let useServer = false;
 
 function makeRoomId(){
@@ -71,11 +81,16 @@ function showRoom(id){
   document.getElementById('game').classList.remove('hidden');
   // load existing lobby and add self if missing
   // If server available, prefer server state. Ensure WS connection and send join.
+  // Ensure WS connection. If a WS URL was provided via query param or UI, use it.
+  const initial = getInitialWS();
+  if(initial){ window.MBJ_WS = initial; }
   connectWS();
-  if(useServer && ws && ws.readyState === WebSocket.OPEN){
+  if(window.MBJ_WS && ws && ws.readyState === WebSocket.OPEN){
+    useServer = true;
     ws.send(JSON.stringify({type:'join', room: state.room, id: state.me.id, name: state.me.name}));
     // server will provide canonical member list
   }else{
+    useServer = false;
     loadLobby();
     const exists = state.members.find(m=>m.name === state.me.name && m.id === state.me.id);
     if(!exists){
@@ -191,11 +206,12 @@ window.addEventListener('storage', (e)=>{
 
 function connectWS(){
   if(ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
-  try{
-    ws = new WebSocket(WS_URL);
-  }catch(e){ console.warn('WS connect failed', e); return }
+  const url = window.MBJ_WS || getInitialWS();
+  if(!url) return; // no configured server
+  try{ ws = new WebSocket(url); }catch(e){ console.warn('WS connect failed', e); return }
   ws.addEventListener('open', ()=>{
     useServer = true;
+    updateWsStatus('connected');
     // send join if we're in a room
     if(state.room && state.me){ ws.send(JSON.stringify({type:'join', room: state.room, id: state.me.id, name: state.me.name})); }
   });
@@ -216,13 +232,18 @@ function connectWS(){
       document.getElementById('name-modal').style.display = 'flex';
     }
   });
-  ws.addEventListener('close', ()=>{ console.log('WS closed'); ws = null });
+  ws.addEventListener('close', ()=>{ console.log('WS closed'); ws = null; useServer=false; updateWsStatus('disconnected'); });
+}
+
+function updateWsStatus(s){
+  const el = document.getElementById('ws-status'); if(!el) return; el.textContent = s;
 }
 
 document.addEventListener('DOMContentLoaded', ()=>{
   const createBtn = document.getElementById('create-btn');
   const joinBtn = document.getElementById('join-btn');
   const input = document.getElementById('room-input');
+  const wsInput = document.getElementById('ws-input');
   const setNameBtn = document.getElementById('set-name-btn');
   const nameInput = document.getElementById('name-input');
 
@@ -233,7 +254,20 @@ document.addEventListener('DOMContentLoaded', ()=>{
     setName(raw);
     // If URL has room param, auto-join
     const room = getRoomFromURL();
+    // if ws param present, populate ws input
+    const params = new URLSearchParams(window.location.search);
+    if(params.get('ws')){ wsInput.value = params.get('ws'); window.MBJ_WS = params.get('ws'); }
+    // if saved server in localStorage, populate
+    const saved = localStorage.getItem('mbj:ws'); if(saved && !wsInput.value){ wsInput.value = saved; window.MBJ_WS = saved }
+    // connection attempt
+    connectWS();
     if(room){ showRoom(room.toUpperCase()) }
+  });
+
+  // allow setting server URL in the page (so GitHub Pages users can paste a wss:// URL)
+  wsInput.addEventListener('change', ()=>{
+    const v = wsInput.value && wsInput.value.trim();
+    if(!v) return; window.MBJ_WS = v; localStorage.setItem('mbj:ws', v); connectWS();
   });
 
   createBtn.addEventListener('click', ()=>{
@@ -253,6 +287,11 @@ document.addEventListener('DOMContentLoaded', ()=>{
   document.getElementById('name-modal').style.display = 'flex';
   const room = getRoomFromURL();
   if(room){ /* wait for user to set name and auto-join */ }
+  // if ws param present in URL and name already set, store and connect
+  const params = new URLSearchParams(window.location.search);
+  if(params.get('ws')){ window.MBJ_WS = params.get('ws'); localStorage.setItem('mbj:ws', params.get('ws')); }
+  // update status initially
+  updateWsStatus('disconnected');
 });
 
 // Made By bubbabaker2009 (end of file watermark)

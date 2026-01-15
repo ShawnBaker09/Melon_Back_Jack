@@ -28,6 +28,7 @@
     <main>
       <div class="controls">
         <input id="room-input" placeholder="Enter room ID to join" />
+        <input id="ws-input" placeholder="Optional: wss://your-server.example" />
         <button id="join-btn">Join Room</button>
         <button id="create-btn">Create Room</button>
       </div>
@@ -35,6 +36,7 @@
       <div id="room" class="panel hidden">
         <p id="room-label">Room: <span id="room-id"></span></p>
         <a id="room-link" href="#">Copy/share this link</a>
+        <p class="status">Server: <span id="ws-status">disconnected</span></p>
         <div class="members">
           <h3>Lobby</h3>
           <ul id="members-list"></ul>
