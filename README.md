@@ -24,8 +24,24 @@ Host on GitHub Pages
 3. Save — your site will be available at `https://<your-username>.github.io/<repo-name>/`.
 
 Next steps (ideas)
-- Add multiplayer syncing using WebRTC/signaling or a lightweight server.
 - Add full Blackjack game logic and betting UI.
+
+Running the optional WebSocket lobby server (for real cross-machine lobbies)
+1. Install Node.js (v16+ recommended).
+2. From the project root run:
+
+```powershell
+cd "c:/Users/bubba/OneDrive/Desktop/Portfolio git/Melon_Back_Jack"
+npm install
+npm start
+```
+
+3. The server listens on port `3000` by default. The client will try `ws://localhost:3000` when opened from localhost.
+4. If you host the server elsewhere, set `window.MBJ_WS` to your WebSocket URL before loading the page, or change `WS_URL` in `script.js`.
+
+Notes
+- The server is a simple in-memory demo: it does not persist rooms across restarts. It manages members, host assignment, and vote-kicks.
+- For GitHub Pages hosting (static) you'll need a separate publicly hosted server (or use a tunneling service) so clients can reach the WebSocket URL.
 
 Credits
 - Watermark/credit: "Made By bubbabaker2009" is present throughout the site as requested.

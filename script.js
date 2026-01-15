@@ -4,6 +4,10 @@
 // Banned words list (lowercase). Add words here to block them from display names.
 const BANNED_WORDS = ['admin','moderator','banned','melon','nigger'];
 
+// WebSocket server config (change if you host the server elsewhere)
+const WS_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? 'ws://localhost:3000' : (window.MBJ_WS || 'ws://' + location.host.replace(/:\d+$/, ':3000'));
+let ws = null;
+
 function makeRoomId(){
   return Math.random().toString(36).slice(2,8).toUpperCase();
 }
@@ -114,7 +118,7 @@ function validateName(n){
 function renderMembers(){
   const ul = document.getElementById('members-list');
   ul.innerHTML = '';
-  // reload from storage to pick up other tabs' updates
+  // reload from storage to pick up other tabs' updates (fallback)
   loadLobby();
   state.members.forEach(member=>{
     const li = document.createElement('li');
@@ -147,14 +151,15 @@ function toggleVote(targetId){
   if(target.isHost) { alert('Cannot vote to kick the host.'); return }
   const voter = state.members.find(m=>m.id===state.me.id);
   if(!voter) return;
-  // toggle
-  if(target.votes.has(voter.id)){
-    target.votes.delete(voter.id);
+  // If connected to server, send vote message. Otherwise fallback to local behavior.
+  if(ws && ws.readyState === WebSocket.OPEN){
+    ws.send(JSON.stringify({type:'vote', room: state.room, voterId: state.me.id, targetId}));
   }else{
-    target.votes.add(voter.id);
+    // toggle locally
+    if(target.votes.has(voter.id)) target.votes.delete(voter.id); else target.votes.add(voter.id);
+    checkKick(target);
+    broadcastChange();
   }
-  checkKick(target);
-  broadcastChange();
 }
 
 function checkKick(target){
@@ -175,6 +180,35 @@ window.addEventListener('storage', (e)=>{
     loadLobby(); renderMembers();
   }
 });
+
+function connectWS(){
+  if(ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+  try{
+    ws = new WebSocket(WS_URL);
+  }catch(e){ console.warn('WS connect failed', e); return }
+  ws.addEventListener('open', ()=>{
+    // send join if we're in a room
+    if(state.room && state.me){ ws.send(JSON.stringify({type:'join', room: state.room, id: state.me.id, name: state.me.name})); }
+  });
+  ws.addEventListener('message', (ev)=>{
+    let data; try{ data = JSON.parse(ev.data); }catch(e){return}
+    if(data.type === 'state'){
+      // replace members with canonical server state
+      state.members = (data.members||[]).map(m=>({id:m.id,name:m.name,isHost:m.isHost,votes:new Set(m.votes||[])}));
+      renderMembers();
+    }else if(data.type === 'kicked'){
+      alert('You were kicked from the lobby.');
+      // leave room locally
+      state.room = null; state.members = [];
+      // remove room query from URL
+      history.replaceState({},'',location.pathname);
+      document.getElementById('room').classList.add('hidden');
+      document.getElementById('game').classList.add('hidden');
+      document.getElementById('name-modal').style.display = 'flex';
+    }
+  });
+  ws.addEventListener('close', ()=>{ console.log('WS closed'); ws = null });
+}
 
 document.addEventListener('DOMContentLoaded', ()=>{
   const createBtn = document.getElementById('create-btn');
