@@ -7,6 +7,7 @@ const BANNED_WORDS = ['admin','moderator','banned','melon','nigger'];
 // WebSocket server config (change if you host the server elsewhere)
 const WS_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? 'ws://localhost:3000' : (window.MBJ_WS || 'ws://' + location.host.replace(/:\d+$/, ':3000'));
 let ws = null;
+let useServer = false;
 
 function makeRoomId(){
   return Math.random().toString(36).slice(2,8).toUpperCase();
@@ -69,16 +70,23 @@ function showRoom(id){
   document.getElementById('room').classList.remove('hidden');
   document.getElementById('game').classList.remove('hidden');
   // load existing lobby and add self if missing
-  loadLobby();
-  const exists = state.members.find(m=>m.name === state.me.name && m.id === state.me.id);
-  if(!exists){
-    // If no host yet, first member becomes host
-    const hasHost = state.members.some(m=>m.isHost);
-    const member = createMember(state.me.name, !hasHost);
-    // ensure our local id stays consistent so votes persist locally
-    member.id = state.me.id;
-    state.members.push(member);
-    broadcastChange();
+  // If server available, prefer server state. Ensure WS connection and send join.
+  connectWS();
+  if(useServer && ws && ws.readyState === WebSocket.OPEN){
+    ws.send(JSON.stringify({type:'join', room: state.room, id: state.me.id, name: state.me.name}));
+    // server will provide canonical member list
+  }else{
+    loadLobby();
+    const exists = state.members.find(m=>m.name === state.me.name && m.id === state.me.id);
+    if(!exists){
+      // If no host yet, first member becomes host
+      const hasHost = state.members.some(m=>m.isHost);
+      const member = createMember(state.me.name, !hasHost);
+      // ensure our local id stays consistent so votes persist locally
+      member.id = state.me.id;
+      state.members.push(member);
+      broadcastChange();
+    }
   }
   renderMembers();
 }
@@ -187,6 +195,7 @@ function connectWS(){
     ws = new WebSocket(WS_URL);
   }catch(e){ console.warn('WS connect failed', e); return }
   ws.addEventListener('open', ()=>{
+    useServer = true;
     // send join if we're in a room
     if(state.room && state.me){ ws.send(JSON.stringify({type:'join', room: state.room, id: state.me.id, name: state.me.name})); }
   });
