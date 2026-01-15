@@ -9,6 +9,17 @@
 </head>
 <body>
   <div class="container">
+    <!-- Name selection modal (required before entering lobbies) -->
+    <div id="name-modal" class="modal">
+      <div class="modal-content">
+        <h2>Choose a display name</h2>
+        <input id="name-input" placeholder="Your display name" maxlength="24" />
+        <div class="modal-actions">
+          <button id="set-name-btn">Set Name</button>
+        </div>
+        <p class="note">Names containing banned words will be rejected.</p>
+      </div>
+    </div>
     <header>
       <h1>Melon_Back_Jack</h1>
       <p class="subtitle">Cyber Blackjack — create or join a room to play</p>
@@ -24,6 +35,10 @@
       <div id="room" class="panel hidden">
         <p id="room-label">Room: <span id="room-id"></span></p>
         <a id="room-link" href="#">Copy/share this link</a>
+        <div class="members">
+          <h3>Lobby</h3>
+          <ul id="members-list"></ul>
+        </div>
       </div>
 
       <section id="game" class="panel hidden">
