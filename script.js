@@ -1,7 +1,8 @@
 // Made By bubbabaker2009
 // Lobby, name selection, banned-name filter, and votekick (client-only demo)
 
-const BANNED_WORDS = ['admin','moderator','banned','melon'];
+// Banned words list (lowercase). Add words here to block them from display names.
+const BANNED_WORDS = ['admin','moderator','banned','melon','nigger'];
 
 function makeRoomId(){
   return Math.random().toString(36).slice(2,8).toUpperCase();
@@ -80,15 +81,32 @@ function showRoom(id){
 
 function sanitizeName(n){
   if(!n) return '';
-  return n.replace(/[^\w\-\s]/g,'').trim();
+  return n.replace(/[^\w\-\s@!$#%\^&*\(\)\+\=\[\]{}|;:'",.<>\/\\?]/g,'').trim();
+}
+
+function normalizeText(s){
+  // basic normalization to catch common leetspeak substitutions
+  return s.toLowerCase()
+    .replace(/[@4]/g,'a')
+    .replace(/[3]/g,'e')
+    .replace(/[1!\|]/g,'i')
+    .replace(/[0]/g,'o')
+    .replace(/[5\$]/g,'s')
+    .replace(/[7]/g,'t')
+    .replace(/[^a-z0-9]/g,'')
+    .replace(/(.)\1+/g,'$1');
 }
 
 function validateName(n){
-  const name = (n||'').toLowerCase();
+  const raw = (n||'').trim();
+  const name = raw.toLowerCase();
   if(!name) return 'Name is required.';
   if(name.length < 2) return 'Name must be at least 2 characters.';
+  const norm = normalizeText(name);
   for(const bad of BANNED_WORDS){
-    if(bad && name.includes(bad)) return 'Name contains a banned word.';
+    if(!bad) continue;
+    // check both raw and normalized forms
+    if(name.includes(bad) || norm.includes(bad)) return 'Name contains a banned word.';
   }
   return null;
 }
