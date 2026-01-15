@@ -54,6 +54,14 @@ function getInitialWS(){
   return null;
 }
 
+function isValidWsUrl(u){
+  if(!u) return false;
+  try{
+    const url = new URL(u);
+    return url.protocol === 'ws:' || url.protocol === 'wss:';
+  }catch(e){return false}
+}
+
 function makeRoomId(){
   return Math.random().toString(36).slice(2,8).toUpperCase();
 }
@@ -242,8 +250,10 @@ window.addEventListener('storage', (e)=>{
 function connectWS(){
   if(ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
   const url = window.MBJ_WS || getInitialWS();
-  if(!url) return; // no configured server
-  try{ ws = new WebSocket(url); }catch(e){ console.warn('WS connect failed', e); return }
+  const url = window.MBJ_WS || getInitialWS();
+  if(!url){ updateWsStatus('no server'); return } // no configured server
+  if(!isValidWsUrl(url)){ updateWsStatus('invalid ws url'); console.warn('Invalid WS URL:', url); return }
+  try{ ws = new WebSocket(url); }catch(e){ console.warn('WS connect failed', e); updateWsStatus('connect failed'); return }
   ws.addEventListener('open', ()=>{
     useServer = true;
     updateWsStatus('connected');
