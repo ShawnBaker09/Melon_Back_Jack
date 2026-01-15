@@ -14,17 +14,19 @@ let useSupabase = false;
 
 async function createRoomSupabase(displayName){
   const roomId = makeRoomId();
-  try{
-    await window.supabase.from('rooms').insert({ id: roomId, host: displayName });
-    await window.supabase.from('players').insert({ room_id: roomId, name: displayName });
-    return roomId;
-  }catch(e){ console.error('supabase createRoom failed', e); throw e }
+  const insertRoom = await window.supabase.from('rooms').insert({ id: roomId, host: displayName });
+  if(insertRoom.error){ handleSupabaseError(insertRoom.error); return null }
+  const insertPlayer = await window.supabase.from('players').insert({ room_id: roomId, name: displayName });
+  if(insertPlayer.error){ handleSupabaseError(insertPlayer.error); return null }
+  return roomId;
 }
 
 async function joinRoomSupabase(roomId, displayName){
-  const { data } = await window.supabase.from('rooms').select('*').eq('id', roomId).maybeSingle();
-  if(!data){ alert('Room not found'); return false }
-  await window.supabase.from('players').insert({ room_id: roomId, name: displayName });
+  const roomRes = await window.supabase.from('rooms').select('*').eq('id', roomId).maybeSingle();
+  if(roomRes.error){ handleSupabaseError(roomRes.error); return false }
+  if(!roomRes.data){ alert('Room not found'); return false }
+  const insertPlayer = await window.supabase.from('players').insert({ room_id: roomId, name: displayName });
+  if(insertPlayer.error){ handleSupabaseError(insertPlayer.error); return false }
   return true;
 }
 
@@ -44,6 +46,25 @@ function subscribeLobbySupabase(roomId){
   });
   channel.subscribe();
 }
+
+function handleSupabaseError(err){
+  console.error('Supabase error', err);
+  // show modal with guidance if auth issue
+  const modal = document.getElementById('supabase-error-modal');
+  const msg = document.getElementById('supabase-error-message');
+  if(err && err.status === 401){
+    msg.textContent = 'Unauthorized (401) from Supabase. Check your anon key and RLS policies. Run supabase-init.sql in your project SQL editor to create tables and public policies for testing.';
+  }else{
+    msg.textContent = 'Supabase error: ' + (err.message || JSON.stringify(err));
+  }
+  if(modal){ modal.classList.remove('hidden'); modal.style.display = 'flex'; }
+}
+
+document.addEventListener('click', (e)=>{
+  if(e.target && e.target.id === 'supabase-close'){
+    const modal = document.getElementById('supabase-error-modal'); if(modal){ modal.classList.add('hidden'); modal.style.display='none' }
+  }
+});
 
 function getInitialWS(){
   const params = new URLSearchParams(window.location.search);
