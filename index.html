@@ -25,6 +25,20 @@
       <p class="subtitle">Cyber Blackjack — create or join a room to play</p>
     </header>
 
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = "https://YOUR_PROJECT_ID.supabase.co";
+  const SUPABASE_ANON_KEY = "YOUR_PUBLIC_ANON_KEY";
+
+  window.supabase = supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY
+  );
+</script>
+
+<script src="script.js"></script>
+
+    
     <main>
       <div class="controls">
         <input id="room-input" placeholder="Enter room ID to join" />
