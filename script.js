@@ -1,90 +1,148 @@
-// Simple WebSocket lobby server for Melon_Back_Jack
-// Made By bubbabaker2009
+// script.js — Supabase-only lobby logic (GitHub Pages compatible)
 
-const WebSocket = require('ws');
-const PORT = process.env.PORT || 3000;
-const wss = new WebSocket.Server({ port: PORT });
+const roomInput = document.getElementById('room-input');
+const createBtn = document.getElementById('create-btn');
+const joinBtn = document.getElementById('join-btn');
+const roomIdSpan = document.getElementById('room-id');
+const membersList = document.getElementById('members-list');
+const wsStatus = document.getElementById('ws-status');
 
-// rooms: roomId -> { members: Map(id -> member) }
-const rooms = new Map();
+const nameInput = document.getElementById('name-input');
+const setNameBtn = document.getElementById('set-name-btn');
 
-function broadcastRoom(roomId){
-  const room = rooms.get(roomId);
-  if(!room) return;
-  const payload = {
-    type: 'state',
-    members: Array.from(room.members.values()).map(m=>({id:m.id,name:m.name,isHost:m.isHost,votes:Array.from(m.votes)}))
-  };
-  const msg = JSON.stringify(payload);
-  for(const m of room.members.values()){
-    try{ m.ws.send(msg); }catch(e){}
+let displayName = null;
+let currentRoomId = null;
+
+/* ================= NAME MODAL ================= */
+
+setNameBtn.addEventListener('click', () => {
+  displayName = (nameInput.value || '').trim();
+  if (!displayName) {
+    alert('Please enter a display name');
+    return;
   }
-}
-
-function ensureRoom(roomId){
-  if(!rooms.has(roomId)) rooms.set(roomId, { members: new Map() });
-  return rooms.get(roomId);
-}
-
-function promoteHostIfNeeded(room){
-  const hasHost = Array.from(room.members.values()).some(m=>m.isHost);
-  if(!hasHost){
-    const first = room.members.values().next();
-    if(!first.done){ first.value.isHost = true }
-  }
-}
-
-function handleJoin(ws, data){
-  const {room, id, name} = data;
-  if(!room || !id) return;
-  const r = ensureRoom(room);
-  const hasHost = Array.from(r.members.values()).some(m=>m.isHost);
-  r.members.set(id, {id,name,isHost:!hasHost,ws,votes:new Set()});
-  ws.room = room; ws.memberId = id;
-  broadcastRoom(room);
-}
-
-function handleLeave(ws){
-  const roomId = ws.room;
-  const id = ws.memberId;
-  if(!roomId || !rooms.has(roomId)) return;
-  const r = rooms.get(roomId);
-  r.members.delete(id);
-  promoteHostIfNeeded(r);
-  broadcastRoom(roomId);
-}
-
-function handleVote(ws, data){
-  const {room, voterId, targetId} = data;
-  if(!room || !rooms.has(room)) return;
-  const r = rooms.get(room);
-  const voter = r.members.get(voterId);
-  const target = r.members.get(targetId);
-  if(!voter || !target) return;
-  if(target.isHost) return; // cannot vote kick host
-  if(target.votes.has(voterId)) target.votes.delete(voterId); else target.votes.add(voterId);
-  // check majority
-  const total = r.members.size;
-  const votes = target.votes.size;
-  const threshold = Math.ceil(total/2);
-  if(votes >= threshold){
-    // notify kicked
-    try{ target.ws.send(JSON.stringify({type:'kicked',reason:'voted'})); }catch(e){}
-    r.members.delete(targetId);
-  }
-  promoteHostIfNeeded(r);
-  broadcastRoom(room);
-}
-
-wss.on('connection', (ws)=>{
-  ws.on('message', (msg)=>{
-    let data; try{ data = JSON.parse(msg.toString()) }catch(e){return}
-    const t = data.type;
-    if(t === 'join') handleJoin(ws, data);
-    else if(t === 'leave') handleLeave(ws);
-    else if(t === 'vote') handleVote(ws, data);
-  });
-  ws.on('close', ()=>{ handleLeave(ws); });
+  document.getElementById('name-modal').classList.add('hidden');
 });
 
-console.log('Melon_Back_Jack WS server running on port', PORT);
+/* ================= REALTIME ================= */
+
+function subscribeToRoom(roomId) {
+  currentRoomId = roomId;
+
+  window.supabase
+    .channel(`room-${roomId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'players',
+        filter: `room_id=eq.${roomId}`
+      },
+      () => refreshMembers(roomId)
+    )
+    .subscribe();
+}
+
+async function refreshMembers(roomId) {
+  const { data, error } = await window.supabase
+    .from('players')
+    .select('name')
+    .eq('room_id', roomId);
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  membersList.innerHTML = '';
+  data.forEach(m => addMember(m.name));
+}
+
+/* ================= CREATE ROOM ================= */
+
+createBtn.addEventListener('click', async () => {
+  if (!displayName) {
+    alert('Set your display name first');
+    return;
+  }
+
+  try {
+    const { data: room, error } = await window.supabase
+      .from('rooms')
+      .insert([{ host: displayName }])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    roomIdSpan.textContent = room.id;
+    wsStatus.textContent = 'connected';
+
+    await window.supabase
+      .from('players')
+      .insert([{ room_id: room.id, name: displayName }]);
+
+    subscribeToRoom(room.id);
+    refreshMembers(room.id);
+
+    window.location.hash = room.id;
+  } catch (err) {
+    console.error(err);
+    alert('Error creating room');
+  }
+});
+
+/* ================= JOIN ROOM ================= */
+
+joinBtn.addEventListener('click', async () => {
+  if (!displayName) {
+    alert('Set your display name first');
+    return;
+  }
+
+  const roomId =
+    (roomInput.value || '').trim() ||
+    window.location.hash.replace('#', '');
+
+  if (!roomId) {
+    alert('Enter a room ID');
+    return;
+  }
+
+  try {
+    const { data: rooms, error } = await window.supabase
+      .from('rooms')
+      .select('*')
+      .eq('id', roomId)
+      .limit(1);
+
+    if (error || !rooms.length) {
+      alert('Room not found');
+      return;
+    }
+
+    roomIdSpan.textContent = roomId;
+    wsStatus.textContent = 'connected';
+
+    await window.supabase
+      .from('players')
+      .insert([{ room_id: roomId, name: displayName }]);
+
+    subscribeToRoom(roomId);
+    refreshMembers(roomId);
+
+    window.location.hash = roomId;
+  } catch (err) {
+    console.error(err);
+    alert('Error joining room');
+  }
+});
+
+/* ================= UI ================= */
+
+function addMember(name) {
+  const li = document.createElement('li');
+  li.textContent = name;
+  membersList.appendChild(li);
+}
