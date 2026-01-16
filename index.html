@@ -10,40 +10,41 @@
 <body>
   <div class="container">
     <!-- Name selection modal (required before entering lobbies) -->
-    <div id="name-modal" class="modal">
-      <div class="modal-content">
-        <h2>Choose a display name</h2>
-        <input id="name-input" placeholder="Your display name" maxlength="24" />
+    <div id="name-modal" class="modal" aria-hidden="false">
+      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="name-modal-title">
+        <h2 id="name-modal-title">Choose a display name</h2>
+        <input id="name-input" placeholder="Your display name" maxlength="24" autocomplete="off" />
         <div class="modal-actions">
-          <button id="set-name-btn">Set Name</button>
+          <button id="set-name-btn" type="button">Set Name</button>
         </div>
         <p class="note">Names containing banned words will be rejected.</p>
       </div>
     </div>
+
     <header>
       <h1>Melon_Back_Jack</h1>
       <p class="subtitle">Cyber Blackjack — create or join a room to play</p>
     </header>
 
     <main>
-      <div class="controls">
+      <div class="controls" role="region" aria-label="Room controls">
         <input id="room-input" placeholder="Enter room ID to join" />
         <input id="ws-input" placeholder="Optional: wss://your-server.example" />
-        <button id="join-btn">Join Room</button>
-        <button id="create-btn">Create Room</button>
+        <button id="join-btn" type="button">Join Room</button>
+        <button id="create-btn" type="button">Create Room</button>
       </div>
- 
-      <div id="room" class="panel hidden">
+
+      <div id="room" class="panel hidden" aria-hidden="true">
         <p id="room-label">Room: <span id="room-id"></span></p>
-        <a id="room-link" href="#">Copy/share this link</a>
+        <a id="room-link" href="#" role="link">Copy/share this link</a>
         <p class="status">Server: <span id="ws-status">disconnected</span></p>
         <div class="members">
           <h3>Lobby</h3>
-          <ul id="members-list"></ul>
+          <ul id="members-list" aria-live="polite"></ul>
         </div>
       </div>
 
-      <section id="game" class="panel hidden">
+      <section id="game" class="panel hidden" aria-hidden="true">
         <h2>Game area</h2>
         <p>This is a placeholder for Blackjack UI — add game logic here.</p>
       </section>
@@ -51,13 +52,13 @@
   </div>
 
   <!-- Supabase error / setup modal -->
-  <div id="supabase-error-modal" class="modal hidden">
-    <div class="modal-content">
-      <h2>Supabase setup required</h2>
-      <p id="supabase-error-message">We received an authorization error from Supabase (401). Please ensure your anon key is correct and that the `rooms` and `players` tables exist and allow public inserts/selects.</p>
+  <div id="supabase-error-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="supabase-error-title">
+      <h2 id="supabase-error-title">Supabase setup required</h2>
+      <p id="supabase-error-message">We received an authorization error from Supabase (401). Please ensure your anon key is correct and that the <code>rooms</code> and <code>players</code> tables exist and allow public inserts/selects.</p>
       <p>Run the SQL in <strong>supabase-init.sql</strong> inside your Supabase project's SQL editor to create tables and policies for testing.</p>
       <div class="modal-actions">
-        <button id="supabase-close">Close</button>
+        <button id="supabase-close" type="button">Close</button>
       </div>
     </div>
   </div>
@@ -70,6 +71,159 @@
       "https://vsuiazngmcqydhnpzatv.supabase.co",
       "sb_publishable_SiY7fU0jr9oJ1qvUiAinCA_4A38DKHW"
     );
+
+    // Minimal UI logic
+    (function () {
+      const nameModal = document.getElementById('name-modal');
+      const nameInput = document.getElementById('name-input');
+      const setNameBtn = document.getElementById('set-name-btn');
+
+      const roomPanel = document.getElementById('room');
+      const gamePanel = document.getElementById('game');
+      const roomInput = document.getElementById('room-input');
+      const wsInput = document.getElementById('ws-input');
+      const joinBtn = document.getElementById('join-btn');
+      const createBtn = document.getElementById('create-btn');
+      const roomIdSpan = document.getElementById('room-id');
+      const roomLink = document.getElementById('room-link');
+      const wsStatus = document.getElementById('ws-status');
+      const membersList = document.getElementById('members-list');
+
+      const supabaseErrorModal = document.getElementById('supabase-error-modal');
+      const supabaseClose = document.getElementById('supabase-close');
+
+      let displayName = null;
+      const bannedWords = ['badword1','badword2']; // adjust as needed
+
+      function show(el) {
+        el.classList.remove('hidden');
+        el.setAttribute('aria-hidden', 'false');
+      }
+      function hide(el) {
+        el.classList.add('hidden');
+        el.setAttribute('aria-hidden', 'true');
+      }
+
+      // Name modal
+      setNameBtn.addEventListener('click', () => {
+        const val = (nameInput.value || '').trim();
+        if (!val) {
+          alert('Please enter a display name.');
+          return;
+        }
+        const lower = val.toLowerCase();
+        if (bannedWords.some(w => lower.includes(w))) {
+          alert('That name contains banned words. Choose another.');
+          return;
+        }
+        displayName = val;
+        hide(nameModal);
+      });
+
+      // Create room (placeholder)
+      createBtn.addEventListener('click', async () => {
+        if (!displayName) {
+          show(nameModal);
+          return;
+        }
+        // Generate a simple room id
+        const newRoomId = crypto.randomUUID().split('-')[0];
+        roomIdSpan.textContent = newRoomId;
+        roomLink.href = window.location.href.split('#')[0] + '#' + newRoomId;
+        roomLink.textContent = roomLink.href;
+        show(roomPanel);
+        wsStatus.textContent = 'connected (local)';
+        // Add self to members list (placeholder)
+        membersList.innerHTML = '';
+        addMember(displayName, true);
+        // TODO: create room in Supabase (insert into rooms)
+      });
+
+      // Join room (placeholder)
+      joinBtn.addEventListener('click', async () => {
+        if (!displayName) {
+          show(nameModal);
+          return;
+        }
+        const roomId = (roomInput.value || '').trim() || window.location.hash.replace('#','');
+        if (!roomId) {
+          alert('Please enter a room id or open link with #roomId');
+          return;
+        }
+        roomIdSpan.textContent = roomId;
+        roomLink.href = window.location.href.split('#')[0] + '#' + roomId;
+        roomLink.textContent = roomLink.href;
+        show(roomPanel);
+        wsStatus.textContent = 'connected (local)';
+        membersList.innerHTML = '';
+        addMember(displayName, false);
+        // TODO: fetch room members from Supabase and subscribe to realtime
+      });
+
+      function addMember(name, isHost=false) {
+        const li = document.createElement('li');
+        li.className = 'member';
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        const span = document.createElement('span');
+        span.textContent = name;
+        meta.appendChild(span);
+        if (isHost) {
+          const badge = document.createElement('span');
+          badge.className = 'host-badge';
+          badge.textContent = 'Host';
+          meta.appendChild(badge);
+        }
+        li.appendChild(meta);
+        const actions = document.createElement('div');
+        const voteBtn = document.createElement('button');
+        voteBtn.className = 'vote-btn';
+        voteBtn.textContent = 'Vote';
+        actions.appendChild(voteBtn);
+        li.appendChild(actions);
+        membersList.appendChild(li);
+      }
+
+      // Copy/share link behavior
+      roomLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        const href = roomLink.href;
+        navigator.clipboard?.writeText(href).then(() => {
+          alert('Room link copied to clipboard');
+        }).catch(() => {
+          prompt('Copy this link:', href);
+        });
+      });
+
+      // Supabase error dialog
+      supabaseClose.addEventListener('click', () => hide(supabaseErrorModal));
+
+      // Basic Supabase auth test (non-destructive)
+      async function testSupabase() {
+        try {
+          // Quick anonymous request to check keys/tables
+          const { data, error, status } = await window.supabase.from('rooms').select('id').limit(1);
+          if (error && status === 401) {
+            show(supabaseErrorModal);
+          }
+        } catch (err) {
+          console.error('Supabase test failed', err);
+        }
+      }
+
+      // Run initial checks
+      (function init() {
+        // If hash contains room id, prefill input
+        const hashRoom = window.location.hash.replace('#','');
+        if (hashRoom) roomInput.value = hashRoom;
+
+        // focus name input
+        nameInput.focus();
+
+        // Lightweight test to check Supabase access
+        testSupabase();
+      }());
+    })();
   </script>
 
   <script type="module" src="script.js"></script>
