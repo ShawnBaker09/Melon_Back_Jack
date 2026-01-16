@@ -1,15 +1,20 @@
-// script.js — minimal Supabase interactions for creating/joining rooms
+// script.js — Supabase-only lobby logic (GitHub Pages compatible)
+
 const roomInput = document.getElementById('room-input');
 const createBtn = document.getElementById('create-btn');
 const joinBtn = document.getElementById('join-btn');
 const roomIdSpan = document.getElementById('room-id');
 const membersList = document.getElementById('members-list');
 const wsStatus = document.getElementById('ws-status');
-let displayName = null;
 
-// Attempt to read name from modal-set value
 const nameInput = document.getElementById('name-input');
 const setNameBtn = document.getElementById('set-name-btn');
+
+let displayName = null;
+let currentRoomId = null;
+
+/* ================= NAME MODAL ================= */
+
 setNameBtn.addEventListener('click', () => {
   displayName = (nameInput.value || '').trim();
   if (!displayName) {
@@ -19,90 +24,125 @@ setNameBtn.addEventListener('click', () => {
   document.getElementById('name-modal').classList.add('hidden');
 });
 
-// Create room: inserts into rooms and adds creator as player
+/* ================= REALTIME ================= */
+
+function subscribeToRoom(roomId) {
+  currentRoomId = roomId;
+
+  window.supabase
+    .channel(`room-${roomId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'players',
+        filter: `room_id=eq.${roomId}`
+      },
+      () => refreshMembers(roomId)
+    )
+    .subscribe();
+}
+
+async function refreshMembers(roomId) {
+  const { data, error } = await window.supabase
+    .from('players')
+    .select('name')
+    .eq('room_id', roomId);
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  membersList.innerHTML = '';
+  data.forEach(m => addMember(m.name));
+}
+
+/* ================= CREATE ROOM ================= */
+
 createBtn.addEventListener('click', async () => {
   if (!displayName) {
     alert('Set your display name first');
     return;
   }
+
   try {
-    const { data: room, error: roomErr } = await window.supabase
+    const { data: room, error } = await window.supabase
       .from('rooms')
       .insert([{ host: displayName }])
       .select()
       .single();
 
-    if (roomErr) throw roomErr;
+    if (error) throw error;
 
     roomIdSpan.textContent = room.id;
     wsStatus.textContent = 'connected';
-    membersList.innerHTML = '';
-    addMember(displayName, true);
 
-    // insert player
-    const { error: playerErr } = await window.supabase
+    await window.supabase
       .from('players')
       .insert([{ room_id: room.id, name: displayName }]);
 
-    if (playerErr) console.error('Failed to add player:', playerErr);
+    subscribeToRoom(room.id);
+    refreshMembers(room.id);
+
+    window.location.hash = room.id;
   } catch (err) {
     console.error(err);
-    alert('Error creating room: ' + (err.message || err));
+    alert('Error creating room');
   }
 });
 
-// Join room: read room then insert player
+/* ================= JOIN ROOM ================= */
+
 joinBtn.addEventListener('click', async () => {
   if (!displayName) {
     alert('Set your display name first');
     return;
   }
-  const roomId = (roomInput.value || '').trim() || window.location.hash.replace('#','');
+
+  const roomId =
+    (roomInput.value || '').trim() ||
+    window.location.hash.replace('#', '');
+
   if (!roomId) {
-    alert('Enter a room id or open link with #roomId');
+    alert('Enter a room ID');
     return;
   }
+
   try {
-    const { data: rooms, error: roomErr } = await window.supabase
+    const { data: rooms, error } = await window.supabase
       .from('rooms')
       .select('*')
       .eq('id', roomId)
       .limit(1);
 
-    if (roomErr) throw roomErr;
-    if (!rooms || rooms.length === 0) {
+    if (error || !rooms.length) {
       alert('Room not found');
       return;
     }
 
     roomIdSpan.textContent = roomId;
     wsStatus.textContent = 'connected';
-    membersList.innerHTML = '';
 
-    // insert player
-    const { data: playerData, error: playerErr } = await window.supabase
+    await window.supabase
       .from('players')
-      .insert([{ room_id: roomId, name: displayName }])
-      .select();
+      .insert([{ room_id: roomId, name: displayName }]);
 
-    if (playerErr) throw playerErr;
+    subscribeToRoom(roomId);
+    refreshMembers(roomId);
 
-    // fetch members
-    const { data: members } = await window.supabase
-      .from('players')
-      .select('name')
-      .eq('room_id', roomId);
-
-    membersList.innerHTML = '';
-    members.forEach(m => addMember(m.name, m.name === rooms[0].host));
+    window.location.hash = roomId;
   } catch (err) {
     console.error(err);
-    alert('Error joining room: ' + (err.message || err));
+    alert('Error joining room');
   }
 });
 
-function addMember(name, isHost=false) {
+/* ================= UI ================= */
+
+function addMember(name) {
   const li = document.createElement('li');
-  li.textContent = name + (isHost ? ' (Host)' : '');
+  li.textContent = name;
   membersList.appendChild(li);
 }
