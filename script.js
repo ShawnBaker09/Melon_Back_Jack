@@ -1,148 +1,63 @@
-// script.js — Supabase-only lobby logic (GitHub Pages compatible)
+/* Made By bubbabaker2009 - watermark present in background and comments */
+:root{
+  --bg:#000000;
+  --panel:#07121a;
+  --accent:#00d6ff;
+  --muted:#7fbfdc;
+}
+html,body{height:100%;}
+body{
+  margin:0;
+  font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
+  background-color:var(--bg);
+  color:var(--muted);
+  -webkit-font-smoothing:antialiased;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='420' height='60'><text x='0' y='40' font-family='monospace' font-size='18' fill='rgba(0,214,255,0.03)'>Made By bubbabaker2009</text></svg>");
+  background-repeat: repeat;
+  background-size:420px 60px;
+}
+.container{max-width:980px;margin:4vh auto;padding:2rem;}
+header{display:flex;flex-direction:column;gap:.25rem;margin-bottom:1.25rem}
+h1{color:var(--accent);margin:0;font-size:2.4rem;text-shadow:0 0 12px rgba(0,214,255,0.12)}
+.subtitle{color:rgba(173,235,255,0.8);margin:0}
+.controls{display:flex;gap:.5rem;align-items:center;margin-top:1rem}
+input#room-input{flex:1;padding:.75rem 1rem;border-radius:8px;border:1px solid rgba(0,214,255,0.12);background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent);color:var(--muted)}
+button{background:linear-gradient(90deg,rgba(0,214,255,0.12),rgba(0,150,255,0.05));border:1px solid rgba(0,214,255,0.15);color:var(--accent);padding:.65rem 1rem;border-radius:8px;cursor:pointer}
+button:hover{box-shadow:0 6px 18px rgba(0,214,255,0.06)}
+.panel{margin-top:1rem;padding:1rem;border-radius:10px;background:linear-gradient(180deg,rgba(0,0,0,0.45),rgba(4,8,12,0.6));border:1px solid rgba(0,214,255,0.06)}
+.hidden{display:none}
+#room-label{font-weight:600;color:#e6fbff}
+#room-link{color:var(--accent);text-decoration:none}
 
-const roomInput = document.getElementById('room-input');
-const createBtn = document.getElementById('create-btn');
-const joinBtn = document.getElementById('join-btn');
-const roomIdSpan = document.getElementById('room-id');
-const membersList = document.getElementById('members-list');
-const wsStatus = document.getElementById('ws-status');
+/* Decorative watermark text overlay (large, faint) */
+body::after{
+  content:"Made By bubbabaker2009";
+  position:fixed;left:10%;top:60%;font-size:72px;color:rgba(0,214,255,0.02);transform:rotate(-15deg);pointer-events:none;z-index:0;white-space:nowrap}
 
-const nameInput = document.getElementById('name-input');
-const setNameBtn = document.getElementById('set-name-btn');
-
-let displayName = null;
-let currentRoomId = null;
-
-/* ================= NAME MODAL ================= */
-
-setNameBtn.addEventListener('click', () => {
-  displayName = (nameInput.value || '').trim();
-  if (!displayName) {
-    alert('Please enter a display name');
-    return;
-  }
-  document.getElementById('name-modal').classList.add('hidden');
-});
-
-/* ================= REALTIME ================= */
-
-function subscribeToRoom(roomId) {
-  currentRoomId = roomId;
-
-  window.supabase
-    .channel(`room-${roomId}`)
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'players',
-        filter: `room_id=eq.${roomId}`
-      },
-      () => refreshMembers(roomId)
-    )
-    .subscribe();
+/* small responsive tweaks */
+@media(max-width:600px){
+  h1{font-size:1.6rem}
+  body::after{font-size:36px;left:-5%;top:70%}
+  .controls{flex-direction:column}
 }
 
-async function refreshMembers(roomId) {
-  const { data, error } = await window.supabase
-    .from('players')
-    .select('name')
-    .eq('room_id', roomId);
+/* Modal (name selection) */
+.modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);z-index:30}
+.modal-content{background:linear-gradient(180deg,#07121a,#031018);padding:2rem;border-radius:12px;border:1px solid rgba(0,214,255,0.06);min-width:320px;box-shadow:0 20px 60px rgba(0,0,0,0.6)}
+.modal-content h2{margin:0 0 .75rem;color:var(--accent)}
+.modal input{width:100%;padding:.6rem 1rem;border-radius:8px;border:1px solid rgba(0,214,255,0.06);background:transparent;color:var(--muted);margin-bottom:.5rem}
+.modal .modal-actions{display:flex;justify-content:flex-end}
+.note{font-size:.85rem;color:rgba(173,235,255,0.6);margin-top:.5rem}
 
-  if (error) {
-    console.error(error);
-    return;
-  }
+/* Members list */
+.members{margin-top:1rem}
+#members-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:.5rem}
+.member{display:flex;align-items:center;justify-content:space-between;padding:.5rem .75rem;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(0,214,255,0.03)}
+.member .meta{display:flex;gap:.6rem;align-items:center}
+.host-badge{background:rgba(0,214,255,0.1);color:var(--accent);padding:.25rem .5rem;border-radius:6px;font-size:.8rem}
+.vote-btn{background:transparent;border:1px solid rgba(0,214,255,0.06);color:var(--accent);padding:.35rem .6rem;border-radius:6px;cursor:pointer}
+.vote-count{font-weight:700;color:#b9f8ff;margin-left:.6rem}
 
-  membersList.innerHTML = '';
-  data.forEach(m => addMember(m.name));
-}
-
-/* ================= CREATE ROOM ================= */
-
-createBtn.addEventListener('click', async () => {
-  if (!displayName) {
-    alert('Set your display name first');
-    return;
-  }
-
-  try {
-    const { data: room, error } = await window.supabase
-      .from('rooms')
-      .insert([{ host: displayName }])
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    roomIdSpan.textContent = room.id;
-    wsStatus.textContent = 'connected';
-
-    await window.supabase
-      .from('players')
-      .insert([{ room_id: room.id, name: displayName }]);
-
-    subscribeToRoom(room.id);
-    refreshMembers(room.id);
-
-    window.location.hash = room.id;
-  } catch (err) {
-    console.error(err);
-    alert('Error creating room');
-  }
-});
-
-/* ================= JOIN ROOM ================= */
-
-joinBtn.addEventListener('click', async () => {
-  if (!displayName) {
-    alert('Set your display name first');
-    return;
-  }
-
-  const roomId =
-    (roomInput.value || '').trim() ||
-    window.location.hash.replace('#', '');
-
-  if (!roomId) {
-    alert('Enter a room ID');
-    return;
-  }
-
-  try {
-    const { data: rooms, error } = await window.supabase
-      .from('rooms')
-      .select('*')
-      .eq('id', roomId)
-      .limit(1);
-
-    if (error || !rooms.length) {
-      alert('Room not found');
-      return;
-    }
-
-    roomIdSpan.textContent = roomId;
-    wsStatus.textContent = 'connected';
-
-    await window.supabase
-      .from('players')
-      .insert([{ room_id: roomId, name: displayName }]);
-
-    subscribeToRoom(roomId);
-    refreshMembers(roomId);
-
-    window.location.hash = roomId;
-  } catch (err) {
-    console.error(err);
-    alert('Error joining room');
-  }
-});
-
-/* ================= UI ================= */
-
-function addMember(name) {
-  const li = document.createElement('li');
-  li.textContent = name;
-  membersList.appendChild(li);
-}
+.controls input#ws-input{width:320px;padding:.65rem .9rem;border-radius:8px;border:1px solid rgba(0,214,255,0.06);background:transparent;color:var(--muted)}
+.status{margin-top:.6rem;color:rgba(173,235,255,0.8)}
+.status #ws-status{color:var(--accent);font-weight:700}
