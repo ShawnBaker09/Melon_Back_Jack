@@ -1,50 +1,77 @@
 <!doctype html>
-<html>
-<head><meta charset="utf-8"><title>MBJ Lobby</title></head>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Melon_Back_Jack</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Watermark comment: Made By bubbabaker2009 -->
+</head>
 <body>
-  <!-- minimal elements referenced by script.js -->
-  <div id="name-modal" style="display:none">
-    <input id="name-input" />
-    <button id="set-name-btn">Set Name</button>
+  <div class="container">
+    <!-- Name selection modal (required before entering lobbies) -->
+    <div id="name-modal" class="modal">
+      <div class="modal-content">
+        <h2>Choose a display name</h2>
+        <input id="name-input" placeholder="Your display name" maxlength="24" />
+        <div class="modal-actions">
+          <button id="set-name-btn">Set Name</button>
+        </div>
+        <p class="note">Names containing banned words will be rejected.</p>
+      </div>
+    </div>
+    <header>
+      <h1>Melon_Back_Jack</h1>
+      <p class="subtitle">Cyber Blackjack — create or join a room to play</p>
+    </header>
+
+    <main>
+      <div class="controls">
+        <input id="room-input" placeholder="Enter room ID to join" />
+        <input id="ws-input" placeholder="Optional: wss://your-server.example" />
+        <button id="join-btn">Join Room</button>
+        <button id="create-btn">Create Room</button>
+      </div>
+ 
+      <div id="room" class="panel hidden">
+        <p id="room-label">Room: <span id="room-id"></span></p>
+        <a id="room-link" href="#">Copy/share this link</a>
+        <p class="status">Server: <span id="ws-status">disconnected</span></p>
+        <div class="members">
+          <h3>Lobby</h3>
+          <ul id="members-list"></ul>
+        </div>
+      </div>
+
+      <section id="game" class="panel hidden">
+        <h2>Game area</h2>
+        <p>This is a placeholder for Blackjack UI — add game logic here.</p>
+      </section>
+    </main>
   </div>
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-<script>
-  const SUPABASE_URL = "https://vsuiazngmcqydhnpzatv.supabase.co";
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzdWlhem5nbWNxeWRobnB6YXR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg1MTE2NzAsImV4cCI6MjA4NDA4NzY3MH0.zMLaY-z1DLEhiU41xqMbmyVQXqUaHAFX0_QizW70frg";
 
-  window.supabase = supabase.createClient(
-    SUPABASE_URL,
-    SUPABASE_ANON_KEY
-  );
-</script>
-
-<script src="script.js"></script>
-
-  
-  <input id="room-input" placeholder="Room ID" />
-  <button id="create-btn">Create Room</button>
-  <button id="join-btn">Join Room</button>
-  <input id="ws-input" placeholder="wss://..." />
-
-  <div id="room" class="hidden">
-    <span id="room-id"></span>
-    <a id="room-link">Copy/share this link</a>
-    <div id="game" class="hidden">
-      <div id="ws-status"></div>
-      <ul id="members-list"></ul>
+  <!-- Supabase error / setup modal -->
+  <div id="supabase-error-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Supabase setup required</h2>
+      <p id="supabase-error-message">We received an authorization error from Supabase (401). Please ensure your anon key is correct and that the `rooms` and `players` tables exist and allow public inserts/selects.</p>
+      <p>Run the SQL in <strong>supabase-init.sql</strong> inside your Supabase project's SQL editor to create tables and policies for testing.</p>
+      <div class="modal-actions">
+        <button id="supabase-close">Close</button>
+      </div>
     </div>
   </div>
 
-  <div id="supabase-error-modal" class="hidden" style="display:none">
-    <div id="supabase-error-message"></div>
-    <button id="supabase-close">Close</button>
-  </div>
-
   <script type="module">
-    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-    window.supabase = createClient('https://vsuiazngmcqydhnpzatv.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzdWlhem5nbWNxeWRobnB6YXR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg1MTE2NzAsImV4cCI6MjA4NDA4NzY3MH0.zMLaY-z1DLEhiU41xqMbmyVQXqUaHAFX0_QizW70frg');
+    // Supabase client (replace with your own keys if different)
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+    window.supabase = createClient(
+      "https://vsuiazngmcqydhnpzatv.supabase.co",
+      "sb_publishable_SiY7fU0jr9oJ1qvUiAinCA_4A38DKHW"
+    );
   </script>
 
-  <script src="script.js"></script>
+  <script type="module" src="script.js"></script>
 </body>
 </html>
