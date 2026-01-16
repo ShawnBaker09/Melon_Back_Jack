@@ -1,16 +1,4 @@
--- Create table to store CSS (one-time)
-CREATE TABLE IF NOT EXISTS styles (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  css text NOT NULL,
-  created_at timestamptz DEFAULT now()
-);
 
--- Insert your CSS using dollar-quoting
-INSERT INTO styles (name, css)
-VALUES (
-  'bubbabaker_dark_theme',
-  $$/* Made By bubbabaker2009 - watermark present in background and comments */
 :root{
   --bg:#000000;
   --panel:#07121a;
@@ -72,6 +60,3 @@ body::after{
 
 .controls input#ws-input{width:320px;padding:.65rem .9rem;border-radius:8px;border:1px solid rgba(0,214,255,0.06);background:transparent;color:var(--muted)}
 .status{margin-top:.6rem;color:rgba(173,235,255,0.8)}
-.status #ws-status{color:var(--accent);font-weight:700}
-$$
-);
