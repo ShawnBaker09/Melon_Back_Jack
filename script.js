@@ -1,63 +1,90 @@
-/* Made By bubbabaker2009 - watermark present in background and comments */
-:root{
-  --bg:#000000;
-  --panel:#07121a;
-  --accent:#00d6ff;
-  --muted:#7fbfdc;
-}
-html,body{height:100%;}
-body{
-  margin:0;
-  font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
-  background-color:var(--bg);
-  color:var(--muted);
-  -webkit-font-smoothing:antialiased;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='420' height='60'><text x='0' y='40' font-family='monospace' font-size='18' fill='rgba(0,214,255,0.03)'>Made By bubbabaker2009</text></svg>");
-  background-repeat: repeat;
-  background-size:420px 60px;
-}
-.container{max-width:980px;margin:4vh auto;padding:2rem;}
-header{display:flex;flex-direction:column;gap:.25rem;margin-bottom:1.25rem}
-h1{color:var(--accent);margin:0;font-size:2.4rem;text-shadow:0 0 12px rgba(0,214,255,0.12)}
-.subtitle{color:rgba(173,235,255,0.8);margin:0}
-.controls{display:flex;gap:.5rem;align-items:center;margin-top:1rem}
-input#room-input{flex:1;padding:.75rem 1rem;border-radius:8px;border:1px solid rgba(0,214,255,0.12);background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent);color:var(--muted)}
-button{background:linear-gradient(90deg,rgba(0,214,255,0.12),rgba(0,150,255,0.05));border:1px solid rgba(0,214,255,0.15);color:var(--accent);padding:.65rem 1rem;border-radius:8px;cursor:pointer}
-button:hover{box-shadow:0 6px 18px rgba(0,214,255,0.06)}
-.panel{margin-top:1rem;padding:1rem;border-radius:10px;background:linear-gradient(180deg,rgba(0,0,0,0.45),rgba(4,8,12,0.6));border:1px solid rgba(0,214,255,0.06)}
-.hidden{display:none}
-#room-label{font-weight:600;color:#e6fbff}
-#room-link{color:var(--accent);text-decoration:none}
+// Simple WebSocket lobby server for Melon_Back_Jack
+// Made By bubbabaker2009
 
-/* Decorative watermark text overlay (large, faint) */
-body::after{
-  content:"Made By bubbabaker2009";
-  position:fixed;left:10%;top:60%;font-size:72px;color:rgba(0,214,255,0.02);transform:rotate(-15deg);pointer-events:none;z-index:0;white-space:nowrap}
+const WebSocket = require('ws');
+const PORT = process.env.PORT || 3000;
+const wss = new WebSocket.Server({ port: PORT });
 
-/* small responsive tweaks */
-@media(max-width:600px){
-  h1{font-size:1.6rem}
-  body::after{font-size:36px;left:-5%;top:70%}
-  .controls{flex-direction:column}
+// rooms: roomId -> { members: Map(id -> member) }
+const rooms = new Map();
+
+function broadcastRoom(roomId){
+  const room = rooms.get(roomId);
+  if(!room) return;
+  const payload = {
+    type: 'state',
+    members: Array.from(room.members.values()).map(m=>({id:m.id,name:m.name,isHost:m.isHost,votes:Array.from(m.votes)}))
+  };
+  const msg = JSON.stringify(payload);
+  for(const m of room.members.values()){
+    try{ m.ws.send(msg); }catch(e){}
+  }
 }
 
-/* Modal (name selection) */
-.modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);z-index:30}
-.modal-content{background:linear-gradient(180deg,#07121a,#031018);padding:2rem;border-radius:12px;border:1px solid rgba(0,214,255,0.06);min-width:320px;box-shadow:0 20px 60px rgba(0,0,0,0.6)}
-.modal-content h2{margin:0 0 .75rem;color:var(--accent)}
-.modal input{width:100%;padding:.6rem 1rem;border-radius:8px;border:1px solid rgba(0,214,255,0.06);background:transparent;color:var(--muted);margin-bottom:.5rem}
-.modal .modal-actions{display:flex;justify-content:flex-end}
-.note{font-size:.85rem;color:rgba(173,235,255,0.6);margin-top:.5rem}
+function ensureRoom(roomId){
+  if(!rooms.has(roomId)) rooms.set(roomId, { members: new Map() });
+  return rooms.get(roomId);
+}
 
-/* Members list */
-.members{margin-top:1rem}
-#members-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:.5rem}
-.member{display:flex;align-items:center;justify-content:space-between;padding:.5rem .75rem;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(0,214,255,0.03)}
-.member .meta{display:flex;gap:.6rem;align-items:center}
-.host-badge{background:rgba(0,214,255,0.1);color:var(--accent);padding:.25rem .5rem;border-radius:6px;font-size:.8rem}
-.vote-btn{background:transparent;border:1px solid rgba(0,214,255,0.06);color:var(--accent);padding:.35rem .6rem;border-radius:6px;cursor:pointer}
-.vote-count{font-weight:700;color:#b9f8ff;margin-left:.6rem}
+function promoteHostIfNeeded(room){
+  const hasHost = Array.from(room.members.values()).some(m=>m.isHost);
+  if(!hasHost){
+    const first = room.members.values().next();
+    if(!first.done){ first.value.isHost = true }
+  }
+}
 
-.controls input#ws-input{width:320px;padding:.65rem .9rem;border-radius:8px;border:1px solid rgba(0,214,255,0.06);background:transparent;color:var(--muted)}
-.status{margin-top:.6rem;color:rgba(173,235,255,0.8)}
-.status #ws-status{color:var(--accent);font-weight:700}
+function handleJoin(ws, data){
+  const {room, id, name} = data;
+  if(!room || !id) return;
+  const r = ensureRoom(room);
+  const hasHost = Array.from(r.members.values()).some(m=>m.isHost);
+  r.members.set(id, {id,name,isHost:!hasHost,ws,votes:new Set()});
+  ws.room = room; ws.memberId = id;
+  broadcastRoom(room);
+}
+
+function handleLeave(ws){
+  const roomId = ws.room;
+  const id = ws.memberId;
+  if(!roomId || !rooms.has(roomId)) return;
+  const r = rooms.get(roomId);
+  r.members.delete(id);
+  promoteHostIfNeeded(r);
+  broadcastRoom(roomId);
+}
+
+function handleVote(ws, data){
+  const {room, voterId, targetId} = data;
+  if(!room || !rooms.has(room)) return;
+  const r = rooms.get(room);
+  const voter = r.members.get(voterId);
+  const target = r.members.get(targetId);
+  if(!voter || !target) return;
+  if(target.isHost) return; // cannot vote kick host
+  if(target.votes.has(voterId)) target.votes.delete(voterId); else target.votes.add(voterId);
+  // check majority
+  const total = r.members.size;
+  const votes = target.votes.size;
+  const threshold = Math.ceil(total/2);
+  if(votes >= threshold){
+    // notify kicked
+    try{ target.ws.send(JSON.stringify({type:'kicked',reason:'voted'})); }catch(e){}
+    r.members.delete(targetId);
+  }
+  promoteHostIfNeeded(r);
+  broadcastRoom(room);
+}
+
+wss.on('connection', (ws)=>{
+  ws.on('message', (msg)=>{
+    let data; try{ data = JSON.parse(msg.toString()) }catch(e){return}
+    const t = data.type;
+    if(t === 'join') handleJoin(ws, data);
+    else if(t === 'leave') handleLeave(ws);
+    else if(t === 'vote') handleVote(ws, data);
+  });
+  ws.on('close', ()=>{ handleLeave(ws); });
+});
+
+console.log('Melon_Back_Jack WS server running on port', PORT);
