@@ -7,7 +7,20 @@
     <input id="name-input" />
     <button id="set-name-btn">Set Name</button>
   </div>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = "https://YOUR_PROJECT_ID.supabase.co";
+  const SUPABASE_ANON_KEY = "YOUR_PUBLIC_ANON_KEY";
 
+  window.supabase = supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY
+  );
+</script>
+
+<script src="script.js"></script>
+
+  
   <input id="room-input" placeholder="Room ID" />
   <button id="create-btn">Create Room</button>
   <button id="join-btn">Join Room</button>
