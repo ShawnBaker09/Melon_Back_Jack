@@ -64,28 +64,6 @@
     </main>
   </div>
 
-  <!-- Supabase error / setup modal -->
-  <div id="supabase-error-modal" class="modal hidden">
-    <div class="modal-content">
-      <h2>Supabase setup required</h2>
-      <p id="supabase-error-message">We received an authorization error from Supabase (401). Please ensure your anon key is correct and that the `rooms` and `players` tables exist and allow public inserts/selects.</p>
-      <p>Run the SQL in <strong>supabase-init.sql</strong> inside your Supabase project's SQL editor to create tables and policies for testing.</p>
-      <div class="modal-actions">
-        <button id="supabase-close">Close</button>
-      </div>
-    </div>
-  </div>
-
-  <script type="module">
-    // Supabase client (replace with your own keys if different)
-    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-    window.supabase = createClient(
-      "https://vsuiazngmcqydhnpzatv.supabase.co",
-      "sb_publishable_SiY7fU0jr9oJ1qvUiAinCA_4A38DKHW"
-    );
-  </script>
-
   <script type="module" src="script.js"></script>
 </body>
 </html>
